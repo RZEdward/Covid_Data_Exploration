@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-csv_file = 'C:/1Projects/1_Covid_Vaccinations.csv'
+csv_file = 'C:/1Projects/Covid_Data_Exploration/1_Covid_Deaths.csv'
 
 df = pd.read_csv(csv_file)
 
@@ -28,7 +28,7 @@ for column in df.columns:
                     else:
                         column_data_types[column] = 'undefined'
 
-create_table_sql = "CREATE TABLE VACCINATIONS (\n"
+create_table_sql = "CREATE TABLE FATALITIES (\n"
 for column, data_type in column_data_types.items():
     create_table_sql += f"    {column} {data_type},"
 create_table_sql = create_table_sql.rstrip(',\n') + "\n);"
