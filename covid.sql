@@ -1,26 +1,118 @@
-CREATE TABLE FATALITIES (
-    iso_code VARCHAR(255),    continent VARCHAR(255),    location VARCHAR(255),    date DATE,    population BIGINT,    total_cases NUMERIC(16, 3),    new_cases NUMERIC(16, 3),    new_cases_smoothed NUMERIC(16, 3),    total_deaths NUMERIC(16, 3),    new_deaths NUMERIC(16, 3),    new_deaths_smoothed NUMERIC(16, 3),    total_cases_per_million NUMERIC(16, 3),    new_cases_per_million NUMERIC(16, 3),    new_cases_smoothed_per_million NUMERIC(16, 3),    total_deaths_per_million NUMERIC(16, 3),    new_deaths_per_million NUMERIC(16, 3),    new_deaths_smoothed_per_million NUMERIC(16, 3),    reproduction_rate NUMERIC(16, 3),    icu_patients NUMERIC(16, 3),    icu_patients_per_million NUMERIC(16, 3),    hosp_patients NUMERIC(16, 3),    hosp_patients_per_million NUMERIC(16, 3),    weekly_icu_admissions NUMERIC(16, 3),    weekly_icu_admissions_per_million NUMERIC(16, 3),    weekly_hosp_admissions NUMERIC(16, 3),    weekly_hosp_admissions_per_million NUMERIC(16, 3),    total_tests NUMERIC(16, 3)
-);
+-- CREATED TABLE FATALITIES
+-- CREATED TABLE VACCINATIONS
 
--- Import data into FATALITIES via csv - "C:\1Projects\1_Covid_Deaths.csv" - with headers --
+select *
+from fatalities
+order by location, date;
 
-CREATE TABLE VACCINATIONS (
-    iso_code VARCHAR(255),    continent VARCHAR(255),    location VARCHAR(255),    date DATE,    total_tests NUMERIC(16, 3),    new_tests NUMERIC(16, 3),    total_tests_per_thousand NUMERIC(16, 3),    new_tests_per_thousand NUMERIC(16, 3),    new_tests_smoothed NUMERIC(16, 3),    new_tests_smoothed_per_thousand NUMERIC(16, 3),    positive_rate NUMERIC(16, 3),    tests_per_case NUMERIC(16, 3),    tests_units VARCHAR(255),    total_vaccinations NUMERIC(16, 3),    people_vaccinated NUMERIC(16, 3),    people_fully_vaccinated NUMERIC(16, 3),    total_boosters NUMERIC(16, 3),    new_vaccinations NUMERIC(16, 3),    new_vaccinations_smoothed NUMERIC(16, 3),    total_vaccinations_per_hundred NUMERIC(16, 3),    people_vaccinated_per_hundred NUMERIC(16, 3),    people_fully_vaccinated_per_hundred NUMERIC(16, 3),    total_boosters_per_hundred NUMERIC(16, 3),    new_vaccinations_smoothed_per_million NUMERIC(16, 3),    new_people_vaccinated_smoothed NUMERIC(16, 3),    new_people_vaccinated_smoothed_per_hundred NUMERIC(16, 3),    stringency_index NUMERIC(16, 3),    population_density NUMERIC(16, 3),    median_age NUMERIC(16, 3),    aged_65_older NUMERIC(16, 3),    aged_70_older NUMERIC(16, 3),    gdp_per_capita NUMERIC(16, 3),    extreme_poverty NUMERIC(16, 3),    cardiovasc_death_rate NUMERIC(16, 3),    diabetes_prevalence NUMERIC(16, 3),    female_smokers NUMERIC(16, 3),    male_smokers NUMERIC(16, 3),    handwashing_facilities NUMERIC(16, 3),    hospital_beds_per_thousand NUMERIC(16, 3),    life_expectancy NUMERIC(16, 3),    human_development_index NUMERIC(16, 3),    excess_mortality_cumulative_absolute NUMERIC(16, 3),    excess_mortality_cumulative NUMERIC(16, 3),    excess_mortality NUMERIC(16, 3),    excess_mortality_cumulative_per_million NUMERIC(16, 3)
-);
--- Import data into VACCINATIONS via csv - "C:\1Projects\1_Covid_Vaccinations.csv" - with headers --
+select *
+from vaccinations
+order by location, date;
 
-SELECT *
-FROM FATALITIES;
+-- What do we want to see?
 
-SELECT *
-FROM VACCINATIONS;
+-- Today's death rate (one row - total cases - total deaths - death rate)
+-- Global total cases on each day
+-- Global rolling total of cases
+-- Global total deaths on each day
+-- Global rolling total of deaths
+-- Global total vaccinations on each day
+-- Global rolling total of vaccinations
+-- Countries with highest total infection rate (total_country_cases/population) (column chart) (map)
+-- Countries with highest total death rate (total_country_deaths/population) (column chart) (map)
+-- Countries with highest total vaccination rate (total_country_deaths/population) (column chart) (map)
+
+-- global death rate since first case
+create view global_death_rate as
+SELECT sum(new_cases) as global_cases, sum(new_deaths) as global_deaths, (sum(new_deaths)/sum(new_cases))*100 as death_rate
+FROM FATALITIES
+where continent is not null
+order by 1,2;
+
+-- combined daily cases & rolling cases
+create view global_daily_cases as
+SELECT date, 
+       SUM(new_cases) AS daily_cases, 
+       SUM(SUM(new_cases)) OVER (ORDER BY date) AS rolling_total_cases
+FROM fatalities
+WHERE continent IS NOT NULL
+GROUP BY date
+ORDER BY date;
+
+-- combined daily deaths & rolling deaths
+create view global_daily_deaths as
+SELECT date, 
+       SUM(new_deaths) AS daily_deaths, 
+       SUM(SUM(new_deaths)) OVER (ORDER BY date) AS rolling_total_deaths
+FROM fatalities
+WHERE continent IS NOT NULL
+GROUP BY date
+ORDER BY date;
+
+-- combined daily vaccinations & rolling vaccinations
+create view global_daily_vaccinations as
+SELECT date, 
+       SUM(new_vaccinations) AS daily_vaccinations, 
+       SUM(SUM(new_vaccinations)) OVER (ORDER BY date) AS rolling_total_vaccinations
+FROM vaccinations
+WHERE continent IS NOT NULL
+GROUP BY date
+ORDER BY date;
+
+-- Countries with highest total infection rate (total_country_cases/population) (column chart) (map)
+create view infection_rate as
+SELECT location, population, max(total_cases) as HighestInfectionCount, max((total_cases/Population))*100 as PercentPopulationInfected
+FROM FATALITIES
+Group by location, population
+order by 4 desc;
+
+-- Countries with highest total death rate (total_country_deaths/population) (column chart) (map)
+create view death_rate as
+SELECT location, population, max(total_deaths) as Total_Death_Count, max((total_deaths/Population))*100 as PercentPopulationDead
+FROM FATALITIES
+Group by location, population
+order by 4 desc;
+
+-- Countries with highest total vaccination rate (total_country_deaths/population) (column chart) (map)
+create view vaccination_rate as
+With Pop_Vac (continent, location, date, population, new_vaccinations, rolling_vaccinations)
+as
+(
+SELECT FATALITIES.continent, FATALITIES.location, FATALITIES.date, FATALITIES.population, VACCINATIONS.new_vaccinations
+,sum(VACCINATIONS.new_vaccinations) OVER (Partition by FATALITIES.location Order by FATALITIES.location, FATALITIES.date) as rolling_vaccinations
+FROM FATALITIES
+JOIN VACCINATIONS
+ON FATALITIES.location = VACCINATIONS.location
+and FATALITIES.date = VACCINATIONS.date
+where FATALITIES.continent is not null
+)
+SELECT *,
+       (CAST(rolling_vaccinations AS NUMERIC(16, 3)) / population) * 100 AS percent_vaccinated
+FROM Pop_Vac;
 
 
+-- number of vaccinations adjusted for population (some people have multiple vaccinations)
+create view adjusted_vaccination_rate as
+With Pop_Vac (continent, location, date, population, new_vaccinations, rolling_vaccinations)
+as
+(
+SELECT FATALITIES.continent, FATALITIES.location, FATALITIES.date, FATALITIES.population, VACCINATIONS.new_vaccinations
+,sum(VACCINATIONS.new_vaccinations) OVER (Partition by FATALITIES.location Order by FATALITIES.location, FATALITIES.date) as rolling_vaccinations
+FROM FATALITIES
+JOIN VACCINATIONS
+ON FATALITIES.location = VACCINATIONS.location
+and FATALITIES.date = VACCINATIONS.date
+where FATALITIES.continent is not null
+)
+SELECT location, population, max(rolling_vaccinations) as total_vaccinations, max((CAST(rolling_vaccinations AS NUMERIC(16, 3)) / population) * 100) as percent_vaccinated
+FROM Pop_Vac
+group by location, population
+order by percent_vaccinated desc;
 
+------------------------------------------------------------------------------------------
 
+CREATE USER rzedward WITH PASSWORD 'private' SUPERUSER;
 
-
-
-
-
-
+select * 
+from global_daily_cases
+order by date desc;
